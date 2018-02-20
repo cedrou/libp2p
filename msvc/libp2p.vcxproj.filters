@@ -1,0 +1,75 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="include">
+      <UniqueIdentifier>{1de9ebfa-512a-4900-b026-9f013d9ced2d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\p2p">
+      <UniqueIdentifier>{079faa5a-0ea8-4576-a99e-540fcf11122a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{7b3f742e-50f9-4069-b95b-8545f119f8cd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\multiformats-ext">
+      <UniqueIdentifier>{3a0b37ef-05d6-423c-a2cf-674f4d612d9f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\p2p\transports">
+      <UniqueIdentifier>{40b9b5db-f511-44a6-bc7d-e7d4c3d38b6f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\p2p\utils">
+      <UniqueIdentifier>{ac05c8f2-13d9-4263-b402-5646d1ff9543}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\libp2p\include\p2p\connection.h">
+      <Filter>include\p2p</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\libp2p\include\p2p\core.h">
+      <Filter>include\p2p</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\libp2p\include\p2p\crypto.h">
+      <Filter>include\p2p</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\libp2p\include\p2p\libp2p.h">
+      <Filter>include\p2p</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\libp2p\include\p2p\node.h">
+      <Filter>include\p2p</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\multiformats-ext\multihash.h">
+      <Filter>include\multiformats-ext</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\p2p\peer.h">
+      <Filter>include\p2p</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\p2p\transports\tcp.h">
+      <Filter>include\p2p\transports</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\p2p\transport.h">
+      <Filter>include\p2p</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\p2p\utils\json.h">
+      <Filter>include\p2p\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\p2p\utils\template_string.h">
+      <Filter>include\p2p\utils</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\libp2p\src\crypto.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\multihash.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\peer.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\node.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\tcp.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>
