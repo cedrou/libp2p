@@ -151,6 +151,15 @@ void peerinfo::add(const addr_t& addr)
     _addrs.insert(addr);
 }
 
+void peerinfo::update(const addr_t& before, const addr_t& after)
+{
+    auto it = _addrs.find(before);
+    if (it == _addrs.end()) return;
+
+    _addrs.erase(it);
+    _addrs.insert(after);
+}
+
 bool peerinfo::has(const addr_t& addr) const
 {
     return std::find(std::begin(_addrs), std::end(_addrs), addr) != std::end(_addrs);

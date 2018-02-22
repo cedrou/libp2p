@@ -72,6 +72,8 @@ namespace p2p {
         // Add a new address that peer can be reached at
         void add(const addr_t& addr);
 
+        void update(const addr_t& before, const addr_t& after);
+
         // Test if the provided address is an addrees that peer can be reached at
         bool has(const addr_t& addr) const;
 
