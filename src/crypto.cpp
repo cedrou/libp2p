@@ -159,53 +159,86 @@ rsa_private_key rsa_private_key::from_jwk(const std::string& jwk)
 
 
 buffer_t rsa_public_key::to_pkcs() const {
-    return Botan::DER_Encoder{}
-        .start_cons(Botan::ASN1_Tag::SEQUENCE)                  //  PublicKey
+    //auto pk = Botan::RSA_PublicKey{ { n.data(), n.size() },{ e.data(), e.size() } };
+    //return pk.subject_public_key();
 
-            .start_cons(Botan::ASN1_Tag::SEQUENCE)              //      algorithm
-                .encode(Botan::OID("1.2.840.113549.1.1.1"))     //          algorithm = 'RSA'
-                .encode_null()                                  //          none: null
-            .end_cons()
+    auto aid = Botan::AlgorithmIdentifier("RSA", Botan::AlgorithmIdentifier::USE_NULL_PARAM);
 
-            .start_cons(Botan::ASN1_Tag::BIT_STRING)            //      subjectPublicKey
-                .start_cons(Botan::ASN1_Tag::SEQUENCE)          //          RSAPublicKey
-                    .encode(Botan::BigInt(n.data(), n.size()))  //              modulus
-                    .encode(Botan::BigInt(e.data(), e.size()))  //              exponent
-                .end_cons()
-            .end_cons()
-
+    auto pk_bits = Botan::DER_Encoder()
+        .start_cons(Botan::ASN1_Tag::SEQUENCE)
+            .encode(Botan::BigInt(n.data(), n.size()))
+            .encode(Botan::BigInt(e.data(), e.size()))
         .end_cons()
         .get_contents_unlocked();
+
+    return Botan::DER_Encoder()
+        .start_cons(Botan::ASN1_Tag::SEQUENCE)
+            .encode(aid)
+            .encode(pk_bits, Botan::ASN1_Tag::BIT_STRING)
+        .end_cons()
+        .get_contents_unlocked();
+
+
+    //return Botan::DER_Encoder{}
+    //    .start_cons(Botan::ASN1_Tag::SEQUENCE)                  //  PublicKey
+
+    //        .start_cons(Botan::ASN1_Tag::SEQUENCE)              //      algorithm
+    //            .encode(Botan::OID("1.2.840.113549.1.1.1"))     //          algorithm = 'RSA'
+    //            .encode_null()                                  //          none: null
+    //        .end_cons()
+
+    //        //.start_cons(Botan::ASN1_Tag::BIT_STRING)            //      subjectPublicKey
+    //            .start_cons(Botan::ASN1_Tag::SEQUENCE)          //          RSAPublicKey
+    //                .encode(Botan::BigInt(n.data(), n.size()))  //              modulus
+    //                .encode(Botan::BigInt(e.data(), e.size()))  //              exponent
+    //            .end_cons()
+    //        //.end_cons()
+
+    //    .end_cons()
+    //    .get_contents_unlocked();
 }
 
 rsa_public_key rsa_public_key::from_pkcs(bufferview_t pkcs)
 {
-    Botan::BigInt n, e;
+    auto aid = Botan::AlgorithmIdentifier{};
+    auto pk_bits = buffer_t{};
 
     Botan::BER_Decoder{ pkcs.data(), gsl::narrow<size_t>(pkcs.size()) }
         .start_cons(Botan::ASN1_Tag::SEQUENCE)         //  PublicKey
-
-            .start_cons(Botan::ASN1_Tag::SEQUENCE)     //      algorithm
-                .decode_and_check(Botan::OID("1.2.840.113549.1.1.1"), "Invalid RSA public key")     //          algorithm = 'RSA'
-                .decode_null()                         //          none: null
-            .verify_end()
-            .end_cons()
-
-            .start_cons(Botan::ASN1_Tag::BIT_STRING)   //      subjectPublicKey
-                .start_cons(Botan::ASN1_Tag::SEQUENCE) //          RSAPublicKey
-                    .decode(n)                         //              modulus
-                    .decode(e)                         //              exponent
-                .verify_end()
-                .end_cons()
-            .verify_end()
-            .end_cons()
-
+            .decode(aid)
+            .decode(pk_bits, Botan::ASN1_Tag::BIT_STRING)
         .verify_end()
         .end_cons();
 
+    auto pk = Botan::RSA_PublicKey{ aid, pk_bits };
+
+    //Botan::BigInt n, e;
+    //Botan::BIT_STRING;
+
+    //Botan::BER_Decoder{ pkcs.data(), gsl::narrow<size_t>(pkcs.size()) }
+    //    .start_cons(Botan::ASN1_Tag::SEQUENCE)         //  PublicKey
+
+    //        .start_cons(Botan::ASN1_Tag::SEQUENCE)     //      algorithm
+    //            .decode_and_check(Botan::OID("1.2.840.113549.1.1.1"), "Invalid RSA public key")     //          algorithm = 'RSA'
+    //            .decode_null()                         //          none: null
+    //        .verify_end()
+    //        .end_cons()
+
+    //        //.start_cons(Botan::ASN1_Tag::BIT_STRING)   //      subjectPublicKey
+    //            .start_cons(Botan::ASN1_Tag::SEQUENCE) //          RSAPublicKey
+    //                .decode(n)                         //              modulus
+    //                .decode(e)                         //              exponent
+    //            .verify_end()
+    //            .end_cons()
+    //        //.verify_end()
+    //        //.end_cons()
+
+    //    .verify_end()
+    //    .end_cons();
+
     return {
-        to_buffer(n),
-        to_buffer(e)
+        to_buffer(pk.get_n()),
+        to_buffer(pk.get_e())
     };
 }
 
@@ -213,7 +246,7 @@ rsa_public_key rsa_public_key::from_pkcs(bufferview_t pkcs)
 buffer_t rsa_private_key::to_pkcs() const {
     return Botan::DER_Encoder{}
         .start_cons(Botan::ASN1_Tag::SEQUENCE)          
-            .encode(Botan::BigInt(0))
+            .encode(static_cast<size_t>(0))
             .encode(Botan::BigInt(n.data(), n.size()))
             .encode(Botan::BigInt(e.data(), e.size()))
             .encode(Botan::BigInt(d.data(), d.size()))

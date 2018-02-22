@@ -1,15 +1,19 @@
 #pragma once
 
-#include "peer.h"
-#include "connection.h"
+#include "switch.h"
 #include <multiformats\multiaddr.h>
 
 namespace p2p {
 
     class node {
+        using modules_t = void*;
+
     public:
+        ~node();
+        node(node&& n) = default;
+
         static node create(const peerinfo& info, const peerstore& store = peerstore{});
-        static node create(void* modules, const peerinfo& info, const peerstore& store);
+        static node create(const modules_t& modules, const peerinfo& info, const peerstore& store);
 
         //
         // Start the libp2p node by creating listeners on the multiaddrs the Peer wants to listen
@@ -40,12 +44,16 @@ namespace p2p {
         const auto& store()   const { return _store; }
 
     private:
-        node(const peerinfo& info) : _info(info) {};
+        node(const modules_t& modules, const peerinfo& info, const peerstore& store);
 
 
     private:
-        peerinfo  _info;
-        peerstore _store;
-        std::vector<
+        peerinfo   _info;
+        peerstore  _store;
+        switchhub  _switch;
+        bool       _started;
+
+        class nodeimpl;
+        std::unique_ptr<nodeimpl> _impl;
     };
 }

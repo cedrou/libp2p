@@ -19,6 +19,12 @@
     <Filter Include="include\p2p\utils">
       <UniqueIdentifier>{ac05c8f2-13d9-4263-b402-5646d1ff9543}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\multiformats-ext">
+      <UniqueIdentifier>{5e09f026-a848-492e-92ce-8b2df8ec6e51}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\p2p\protocols">
+      <UniqueIdentifier>{5a685a70-dbb6-4d3d-bd9a-3666a56c570c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\libp2p\include\p2p\connection.h">
@@ -54,12 +60,21 @@
     <ClInclude Include="..\include\p2p\utils\template_string.h">
       <Filter>include\p2p\utils</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\p2p\switch.h">
+      <Filter>include\p2p</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\multiformats-ext\multistream.h">
+      <Filter>include\multiformats-ext</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\p2p\protocols\ping.h">
+      <Filter>include\p2p\protocols</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\p2p\protocol.h">
+      <Filter>include\p2p</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\libp2p\src\crypto.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\multihash.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\peer.cpp">
@@ -70,6 +85,12 @@
     </ClCompile>
     <ClCompile Include="..\src\tcp.cpp">
       <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\switch.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\multiformats-ext\multihash.cpp">
+      <Filter>src\multiformats-ext</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

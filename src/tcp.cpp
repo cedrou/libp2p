@@ -35,13 +35,19 @@ listener p2p::transports::tcp::create_listener(std::function<void(const connecti
     return listener::create(handler);
 }
 
-std::vector<multiaddr> p2p::transports::tcp::filter(const std::vector<multiaddr>& addrs)
+bool p2p::transports::tcp::match(const multiformats::multiaddr& addr) const
 {
-    auto result = std::vector<multiaddr>();
-    std::copy_if(addrs.begin(), addrs.end(), std::back_inserter(result), [](auto ma) {
-        if (ma.has(p2p_circuit)) return false;
-        ma = ma.decapsulate(ipfs);
-        return is_tcp(ma);
-    });
-    return result;
+    if (addr.has(p2p_circuit)) return false;
+    return is_tcp(addr.decapsulate(ipfs));
 }
+
+//std::vector<multiaddr> p2p::transports::tcp::filter(const std::initializer_list<multiformats::multiaddr>& addresses)
+//{
+//    auto result = std::vector<multiaddr>();
+//    std::copy_if(std::begin(addresses), std::end(addresses), std::back_inserter(result), [](auto ma) {
+//        if (ma.has(p2p_circuit)) return false;
+//        ma = ma.decapsulate(ipfs);
+//        return is_tcp(ma);
+//    });
+//    return result;
+//}

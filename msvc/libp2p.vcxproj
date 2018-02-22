@@ -24,8 +24,12 @@
     <ClInclude Include="..\..\libp2p\include\p2p\crypto.h" />
     <ClInclude Include="..\..\libp2p\include\p2p\libp2p.h" />
     <ClInclude Include="..\..\libp2p\include\p2p\node.h" />
+    <ClInclude Include="..\include\multiformats-ext\multistream.h" />
     <ClInclude Include="..\include\p2p\peer.h" />
     <ClInclude Include="..\include\multiformats-ext\multihash.h" />
+    <ClInclude Include="..\include\p2p\protocol.h" />
+    <ClInclude Include="..\include\p2p\protocols\ping.h" />
+    <ClInclude Include="..\include\p2p\switch.h" />
     <ClInclude Include="..\include\p2p\transport.h" />
     <ClInclude Include="..\include\p2p\transports\tcp.h" />
     <ClInclude Include="..\include\p2p\utils\json.h" />
@@ -33,9 +37,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\libp2p\src\crypto.cpp" />
-    <ClCompile Include="..\src\multihash.cpp" />
+    <ClCompile Include="..\src\multiformats-ext\multihash.cpp" />
     <ClCompile Include="..\src\node.cpp" />
     <ClCompile Include="..\src\peer.cpp" />
+    <ClCompile Include="..\src\switch.cpp" />
     <ClCompile Include="..\src\tcp.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
