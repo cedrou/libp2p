@@ -15,6 +15,7 @@ using _tcp = asio::ip::tcp;
 
 #include <iostream>
 #include <thread>
+#include <deque>
 
 // https://github.com/libp2p/js-libp2p/blob/master/examples/echo/src/libp2p-bundle.js
 // https://github.com/libp2p/js-libp2p/blob/master/src/index.js
@@ -24,130 +25,284 @@ using namespace std::placeholders;
 class ASIO_Singleton
 {
 public:
-    ASIO_Singleton() : loop([this]() { 
-        asio::io_service::work work(io_service);
+    ASIO_Singleton() : _work(io_service), _loop([this]() { 
         io_service.run();
     })
     { }
 
     ~ASIO_Singleton() {
         io_service.stop(); 
-        io_service.reset();
-        loop.join(); 
+        _loop.join(); 
     }
 
     asio::io_service io_service;
 
 private:
-    std::thread loop;
+    asio::io_service::work _work;
+    std::thread _loop;
 };
 
 static ASIO_Singleton ASIO;
 
+
+namespace {
+    const struct node_error_category : std::error_category
+    {
+        const char* name() const noexcept override { return "p2p::node"; }
+
+        std::string message(int ev) const override
+        {
+            switch (static_cast<node_error>(ev))
+            {
+            case node_error::no_ipfs_address:
+                return "the provided multiaddress is not an IPFS address";
+
+            default:
+                return "(unrecognized error)";
+            }
+        }
+    } errcat{};
+}
+
+std::error_code p2p::make_error_code(node_error e)
+{
+    return { static_cast<int>(e), errcat };
+}
+
 class p2p::node::nodeimpl
 {
 
-    class session
+    class echo_server : public std::enable_shared_from_this<echo_server>
     {
     public:
-        session()
-            : socket_(ASIO.io_service)
-        {
+        echo_server()
+            : _socket(ASIO.io_service), _data(1024)
+        { }
+
+        ~echo_server()
+        { 
+            _socket.close();
         }
 
-        _tcp::socket& socket()
-        {
-            return socket_;
-        }
+        _tcp::socket& socket() { return _socket; }
 
         void start()
         {
-            socket_.async_read_some(asio::buffer(data_, max_length), std::bind(&session::handle_read, this, _1, _2));
+            _socket.async_read_some(asio::buffer(_data), std::bind(&echo_server::handle_read, shared_from_this(), _1, _2));
         }
 
     private:
         void handle_read(asio::error_code error, size_t bytes_transferred)
         {
+            //{//DEBUG
+            //    std::cout << "echo_server:handle_read:error:" << error.message() << std::endl;
+            //    std::cout << "                       :bytes:" << bytes_transferred << std::endl;
+            //}
             if (!error)
             {
-                asio::async_write(socket_, asio::buffer(data_, bytes_transferred), std::bind(&session::handle_write, this, _1));
-            }
-            else
-            {
-                delete this;
+                asio::async_write(_socket, asio::buffer(_data.data(), bytes_transferred), std::bind(&echo_server::handle_write, shared_from_this(), _1));
             }
         }
 
         void handle_write(asio::error_code error)
         {
+            //{//DEBUG
+            //    std::cout << "echo_server:handle_write:error:" << error.message() << std::endl;
+            //}
+
             if (!error)
             {
-                socket_.async_read_some(asio::buffer(data_, max_length), std::bind(&session::handle_read, this, _1, _2));
-            }
-            else
-            {
-                delete this;
+                _socket.async_read_some(asio::buffer(_data), std::bind(&echo_server::handle_read, shared_from_this(), _1, _2));
             }
         }
 
-        _tcp::socket socket_;
-        enum { max_length = 1024 };
-        char data_[max_length];
+        _tcp::socket _socket;
+        std::vector<char> _data;
+    };
+
+    class echo_client : public p2p::connection, public std::enable_shared_from_this<echo_client>
+    {
+        public:
+            echo_client()
+                : _socket(ASIO.io_service)
+            { }
+
+            ~echo_client()
+            {
+                _socket.close();
+            }
+
+            _tcp::socket& socket() { return _socket; }
+
+            void async_connect(_tcp::resolver::iterator endpoint_iterator, const std::function<void(std::error_code)>& handler)
+            {
+                auto self(shared_from_this());
+                asio::async_connect(_socket, endpoint_iterator, [self, handler](std::error_code error, _tcp::resolver::iterator it)
+                {
+                    //{//DEBUG
+                    //    std::cout << "echo_client:async_connect:error:" << error.message() << std::endl;
+                    //    std::cout << "                         :it   :" << it->host_name() << ":" << it->service_name() << std::endl;
+                    //}
+                    handler(error);
+                });
+            }
+
+            void close()
+            {
+                ASIO.io_service.post([this]() { _socket.close(); });
+            }
+
+            void write(const buffer_t& msg)
+            {
+                auto self(shared_from_this());
+                ASIO.io_service.post([self, this, msg]()
+                {
+                    bool write_in_progress = !write_queue.empty();
+                    write_queue.push_back(msg);
+                    if (!write_in_progress)
+                    {
+                        do_write();
+                    }
+                });
+            }
+
+            void read(const std::function<void(std::error_code, const buffer_t&)>& handler)
+            {
+                auto self(shared_from_this());
+                _socket.async_read_some(asio::buffer(read_buffer, max_length), [self, this, handler](std::error_code error, std::size_t length)
+                {
+                    //{//DEBUG
+                    //    std::cout << "echo_client:async_read:error :" << error.message() << std::endl;
+                    //    std::cout << "                      :length:" << length << std::endl;
+                    //}
+
+                    if (error) {
+                        _socket.close();
+                        return handler(error, {});
+                    }
+
+                    handler({}, buffer_t{ &read_buffer[0], &read_buffer[length] });
+                });
+            }
+
+        private:
+            void do_write()
+            {
+                auto self(shared_from_this());
+                asio::async_write(_socket, asio::buffer(write_queue.front().data(), write_queue.front().size()), [self, this](std::error_code ec, std::size_t /*length*/)
+                {
+                    if (!ec)
+                    {
+                        write_queue.pop_front();
+                        if (!write_queue.empty())
+                        {
+                            do_write();
+                        }
+                    }
+                    else
+                    {
+                        _socket.close();
+                    }
+                });
+            }
+
+        private:
+            _tcp::socket _socket;
+            enum { max_length = 1024 };
+            char read_buffer[max_length];
+            std::deque<buffer_t> write_queue;
     };
 
 public:
-    //nodeimpl(asio::io_service& io_service)
-    //    : io_service(io_service)
-    //{
-    //}
+    nodeimpl()
+        : _acceptor(ASIO.io_service), _resolver(ASIO.io_service)
+    {
+    }
+
+    ~nodeimpl()
+    {
+        stop();
+    }
 
     multiaddr listen(const multiaddr& ma)
     {
         auto protocol = ma[0].addr() == ip4 ? _tcp::v4() : ma[0].addr() == ip6 ? _tcp::v6() : throw std::invalid_argument("must be IPv4 or IPv6 multiaddr");
+        auto host = ma[0].str();
         auto port = std::stoi(ma[1].str());
 
-        acceptor = std::make_unique<_tcp::acceptor>(ASIO.io_service, _tcp::endpoint(protocol, port));
+        _acceptor.open(protocol);
+        _acceptor.set_option(_tcp::acceptor::reuse_address(true));
+        _acceptor.bind(_tcp::endpoint(asio::ip::address::from_string(host), port));
+        _acceptor.listen();
 
-        start_accept();
+        accept_new_connection();
 
-        auto actualma = ma;
-        
-        auto lep = acceptor->local_endpoint();
+        auto lep = _acceptor.local_endpoint();
         auto addr = lep.address();
-        port = lep.port();
 
-
-        return { (ma[0].addr() == ip4 ? "/ip4/" : "/ip6/") + addr.to_string() + "/tcp/" + std::to_string(port) };
+        return { (ma[0].addr() == ip4 ? "/ip4/" : "/ip6/") + lep.address().to_string() + "/tcp/" + std::to_string(lep.port()) };
     }
 
     void stop()
     {
-        acceptor->close();
+        _acceptor.close();
+        _resolver.cancel();
     }
+
+    template <class Iterator>
+    void async_connect(const Iterator& current, const Iterator& end, const DialHandler& handler)
+    {
+        auto ma = *current;
+
+        auto host = ma[0].str();
+        auto port = ma[1].str();
+
+        _resolver.async_resolve({ host, port }, [this, current, end, handler](asio::error_code error, _tcp::resolver::iterator it) {
+            //{//DEBUG
+            //    std::cout << "on_async_resolve:error:" << error.message() << std::endl;
+            //    auto copyIt = it;
+            //    while (copyIt != _tcp::resolver::iterator{}) {
+            //        std::cout << "                :it   :" << copyIt->host_name() << ":" << copyIt->service_name() << std::endl;
+            //        copyIt++;
+            //    }
+            //}
+
+            if (error) {
+                auto next = current;
+                next++;
+                if (next == end) return handler(error, nullptr);
+                return async_connect(next, end, handler);
+            }
+
+            auto conn = std::make_shared<echo_client>();
+            conn->async_connect(it, [=](std::error_code error) {
+                return error ? handler(error, {}) : handler({}, conn);
+            });
+        });
+    };
 
 private:
-    void start_accept()
+    void accept_new_connection()
     {
-        session* new_session = new session();
-        acceptor->async_accept(new_session->socket(), std::bind(&nodeimpl::handle_accept, this, new_session, _1));
-    }
-
-    void handle_accept(session* new_session, asio::error_code error)
-    {
-        if (!error)
+        auto new_session = std::make_shared<echo_server>();
+        _acceptor.async_accept(new_session->socket(), [this, new_session](asio::error_code error)
         {
+            //{//DEBUG
+            //    std::cout << "on_async_accept:error :" << error.message() << std::endl;
+            //    std::cout << "               :local :" << new_session->socket().local_endpoint() << std::endl;
+            //    std::cout << "               :remote:" << new_session->socket().remote_endpoint() << std::endl;
+            //}
+
+            if (error) return;
+
             new_session->start();
-        }
-        else
-        {
-            delete new_session;
-        }
-
-        start_accept();
+            accept_new_connection();
+        });
     }
 
 private:
-    std::unique_ptr<_tcp::acceptor> acceptor;
+    _tcp::acceptor _acceptor;
+    _tcp::resolver _resolver;
 };
 
 node node::create(const peerinfo& info, const peerstore& store)
@@ -210,9 +365,9 @@ void node::start()
 */
     auto& ma = *(_info.addrs().begin());
 
-    auto newaddr = _impl->listen(ma);
+    auto newma = _impl->listen(ma);
 
-    _info.update(ma, newaddr);
+    _info.update(ma, newma);
 }
 
 void node::close()
@@ -220,38 +375,41 @@ void node::close()
     _impl->stop();
 }
 
-void node::dial(const peerinfo& info) 
+void node::dial(const peerinfo& info, const DialHandler& handler)
 {
+    return dialProtocol(info, "", std::move(handler));
 }
-void node::dial(const peerid& id) 
+void node::dial(const peerid& id, const DialHandler& handler)
 { 
-    return dial(_store.at(id)); 
+    return dial(_store.at(id), std::move(handler));
 }
-void node::dial(const multiaddr& info)
+void node::dial(const multiaddr& info, const DialHandler& handler)
 {
     for (auto proto : info.protocols()) {
         if (proto.addr() == multiformats::ipfs) {
-            return dial(peerid{ as_string(proto.data()) });
+            return dial(peerid{ as_string(proto.data()) }, std::move(handler));
         }
     }
+    return handler(node_error::no_ipfs_address, nullptr);
 }
 
-std::unique_ptr<connection> node::dialProtocol(const peerinfo& info, const std::string& protocol)
+
+void node::dialProtocol(const peerinfo& info, const std::string& protocol, const DialHandler& handler)
 {
-    return {};
+    _impl->async_connect(info.addrs().begin(), info.addrs().end(), std::move(handler));
 }
-std::unique_ptr<connection> node::dialProtocol(const peerid& id, const std::string& protocol)
+void node::dialProtocol(const peerid& id, const std::string& protocol, const DialHandler& handler)
 {
-    return dialProtocol(_store.at(id), protocol);
+    return dialProtocol(_store.at(id), protocol, std::move(handler));
 }
-std::unique_ptr<connection> node::dialProtocol(const multiaddr& info, const std::string& protocol)
+void node::dialProtocol(const multiaddr& info, const std::string& protocol, const DialHandler& handler)
 {
     for (auto proto : info.protocols()) {
         if (proto.addr() == multiformats::ipfs) {
-            return dialProtocol(peerid{ as_string(proto.data()) }, protocol);
+            return dialProtocol(peerid{ as_string(proto.data()) }, protocol, std::move(handler));
         }
     }
-    return nullptr;
+    return handler(node_error::no_ipfs_address, nullptr);
 }
 
 void node::hangup(const peerinfo& info)

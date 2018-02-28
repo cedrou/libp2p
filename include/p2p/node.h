@@ -2,12 +2,18 @@
 
 #include "switch.h"
 #include <multiformats\multiaddr.h>
+#include <system_error>
 
 namespace p2p {
 
+
     class node {
         using modules_t = void*;
+        
+        using StartHandler = std::function<void(const std::error_code&, const multiformats::multiaddr&)>;
+        using DialHandler = std::function<void(const std::error_code&, std::shared_ptr<connection>)>;
 
+    public:
     public:
         ~node();
         node(node&& n) = default;
@@ -26,13 +32,13 @@ namespace p2p {
         void close();
 
 
-        void dial(const peerinfo& info);
-        void dial(const peerid& info);
-        void dial(const multiformats::multiaddr& info);
-
-        std::unique_ptr<connection> dialProtocol(const peerinfo& info, const std::string& protocol);
-        std::unique_ptr<connection> dialProtocol(const peerid& info, const std::string& protocol);
-        std::unique_ptr<connection> dialProtocol(const multiformats::multiaddr& info, const std::string& protocol);
+        void dial(const peerinfo& info, const DialHandler& handler);
+        void dial(const peerid& info, const DialHandler& handler);
+        void dial(const multiformats::multiaddr& info, const DialHandler& handler);
+        
+        void dialProtocol(const peerinfo& info, const std::string& protocol, const DialHandler& handler);
+        void dialProtocol(const peerid& info, const std::string& protocol, const DialHandler& handler);
+        void dialProtocol(const multiformats::multiaddr& info, const std::string& protocol, const DialHandler& handler);
 
         void hangup(const peerinfo& info);
         void hangup(const peerid& info);
@@ -56,4 +62,17 @@ namespace p2p {
         class nodeimpl;
         std::unique_ptr<nodeimpl> _impl;
     };
+
+    enum class node_error
+    {
+        no_ipfs_address = 1,
+    };
+
+    inline std::error_code make_error_code(node_error);
+}
+
+namespace std
+{
+    template <>
+    struct is_error_code_enum<p2p::node_error> : true_type {};
 }
