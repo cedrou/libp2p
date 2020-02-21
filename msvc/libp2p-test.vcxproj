@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClCompile Include="..\tests\crypto-test.cpp" />
     <ClCompile Include="..\tests\echo.cpp" />
+    <ClCompile Include="..\tests\exceptor-test.cpp" />
     <ClCompile Include="..\tests\main-test.cpp" />
     <ClCompile Include="..\tests\peer-test.cpp" />
   </ItemGroup>

@@ -18,5 +18,8 @@
     <ClCompile Include="..\tests\echo.cpp">
       <Filter>tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\tests\exceptor-test.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

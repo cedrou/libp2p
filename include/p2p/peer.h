@@ -8,7 +8,8 @@
 namespace p2p {
 
     //
-    // A peerid uniquely identify a node/peer in the p2p network
+    // A peerid uniquely identify a node/peer in the p2p network by a hash of a public RSA key.
+    //   it can contain the public and the private key.
     //
     class peerid {
     public:
@@ -57,7 +58,8 @@ namespace p2p {
 
 
     //
-    // peerinfo represents a peer on the network
+    // peerinfo represents a peer on the network:
+    //   it has an ID/keypair and a list of multiaddr to which it can be contacted
     //
     class peerinfo {
         using addr_t       = multiformats::multiaddr;
@@ -105,7 +107,7 @@ namespace p2p {
 
 
     //
-    //
+    // peerstore represents a book of known peers, indexed by their peerid
     //
     class peerstore {
         using store_t = std::map<peerid, peerinfo>;

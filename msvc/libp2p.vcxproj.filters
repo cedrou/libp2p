@@ -72,6 +72,12 @@
     <ClInclude Include="..\include\p2p\protocol.h">
       <Filter>include\p2p</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\p2p\utils\defer.h">
+      <Filter>include\p2p\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\p2p\utils\exceptor.h">
+      <Filter>include\p2p\utils</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\libp2p\src\crypto.cpp">

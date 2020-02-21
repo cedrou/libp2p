@@ -32,6 +32,8 @@
     <ClInclude Include="..\include\p2p\switch.h" />
     <ClInclude Include="..\include\p2p\transport.h" />
     <ClInclude Include="..\include\p2p\transports\tcp.h" />
+    <ClInclude Include="..\include\p2p\utils\defer.h" />
+    <ClInclude Include="..\include\p2p\utils\exceptor.h" />
     <ClInclude Include="..\include\p2p\utils\json.h" />
     <ClInclude Include="..\include\p2p\utils\template_string.h" />
   </ItemGroup>

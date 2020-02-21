@@ -69,160 +69,195 @@ std::error_code p2p::make_error_code(node_error e)
     return { static_cast<int>(e), errcat };
 }
 
-class p2p::node::nodeimpl
-{
 
-    class echo_server : public std::enable_shared_from_this<echo_server>
+class echo_server : public std::enable_shared_from_this<echo_server>
+{
+public:
+    echo_server()
+        : _socket(ASIO.io_service), _data(1024)
+    { }
+
+    ~echo_server()
+    { 
+        _socket.close();
+    }
+
+    _tcp::socket& socket() { return _socket; }
+
+    void start()
     {
+        _socket.async_read_some(asio::buffer(_data), std::bind(&echo_server::handle_read, shared_from_this(), _1, _2));
+    }
+
+private:
+    void handle_read(asio::error_code error, size_t bytes_transferred)
+    {
+        //{//DEBUG
+        //    std::cout << "echo_server:handle_read:error:" << error.message() << std::endl;
+        //    std::cout << "                       :bytes:" << bytes_transferred << std::endl;
+        //}
+        if (!error)
+        {
+            asio::async_write(_socket, asio::buffer(_data.data(), bytes_transferred), std::bind(&echo_server::handle_write, shared_from_this(), _1));
+        }
+    }
+
+    void handle_write(asio::error_code error)
+    {
+        //{//DEBUG
+        //    std::cout << "echo_server:handle_write:error:" << error.message() << std::endl;
+        //}
+
+        if (!error)
+        {
+            _socket.async_read_some(asio::buffer(_data), std::bind(&echo_server::handle_read, shared_from_this(), _1, _2));
+        }
+    }
+
+    _tcp::socket _socket;
+    std::vector<char> _data;
+};
+
+class echo_client : public p2p::connection, public std::enable_shared_from_this<echo_client>
+{
     public:
-        echo_server()
-            : _socket(ASIO.io_service), _data(1024)
+        echo_client()
+            : _socket(ASIO.io_service)
         { }
 
-        ~echo_server()
-        { 
+        ~echo_client()
+        {
             _socket.close();
         }
 
         _tcp::socket& socket() { return _socket; }
 
-        void start()
+        void async_connect(_tcp::resolver::iterator endpoint_iterator, const std::function<void(std::error_code)>& handler)
         {
-            _socket.async_read_some(asio::buffer(_data), std::bind(&echo_server::handle_read, shared_from_this(), _1, _2));
+            auto self(shared_from_this());
+            asio::async_connect(_socket, endpoint_iterator, [self, handler](std::error_code error, _tcp::resolver::iterator it)
+            {
+                //{//DEBUG
+                //    std::cout << "echo_client:async_connect:error:" << error.message() << std::endl;
+                //    std::cout << "                         :it   :" << it->host_name() << ":" << it->service_name() << std::endl;
+                //}
+                handler(error);
+            });
+        }
+
+        void close()
+        {
+            ASIO.io_service.post([this]() { _socket.close(); });
+        }
+
+        void write(const buffer_t& msg)
+        {
+            auto self(shared_from_this());
+            ASIO.io_service.post([self, this, msg]()
+            {
+                bool write_in_progress = !write_queue.empty();
+                write_queue.push_back(msg);
+                if (!write_in_progress)
+                {
+                    do_write();
+                }
+            });
+        }
+
+        void read(const std::function<void(std::error_code, const buffer_t&)>& handler)
+        {
+            auto self(shared_from_this());
+            _socket.async_read_some(asio::buffer(read_buffer, max_length), [self, this, handler](std::error_code error, std::size_t length)
+            {
+                //{//DEBUG
+                //    std::cout << "echo_client:async_read:error :" << error.message() << std::endl;
+                //    std::cout << "                      :length:" << length << std::endl;
+                //}
+
+                if (error) {
+                    _socket.close();
+                    return handler(error, {});
+                }
+
+                handler({}, buffer_t{ &read_buffer[0], &read_buffer[length] });
+            });
         }
 
     private:
-        void handle_read(asio::error_code error, size_t bytes_transferred)
+        void do_write()
         {
-            //{//DEBUG
-            //    std::cout << "echo_server:handle_read:error:" << error.message() << std::endl;
-            //    std::cout << "                       :bytes:" << bytes_transferred << std::endl;
-            //}
-            if (!error)
+            auto self(shared_from_this());
+            asio::async_write(_socket, asio::buffer(write_queue.front().data(), write_queue.front().size()), [self, this](std::error_code ec, std::size_t /*length*/)
             {
-                asio::async_write(_socket, asio::buffer(_data.data(), bytes_transferred), std::bind(&echo_server::handle_write, shared_from_this(), _1));
-            }
-        }
-
-        void handle_write(asio::error_code error)
-        {
-            //{//DEBUG
-            //    std::cout << "echo_server:handle_write:error:" << error.message() << std::endl;
-            //}
-
-            if (!error)
-            {
-                _socket.async_read_some(asio::buffer(_data), std::bind(&echo_server::handle_read, shared_from_this(), _1, _2));
-            }
-        }
-
-        _tcp::socket _socket;
-        std::vector<char> _data;
-    };
-
-    class echo_client : public p2p::connection, public std::enable_shared_from_this<echo_client>
-    {
-        public:
-            echo_client()
-                : _socket(ASIO.io_service)
-            { }
-
-            ~echo_client()
-            {
-                _socket.close();
-            }
-
-            _tcp::socket& socket() { return _socket; }
-
-            void async_connect(_tcp::resolver::iterator endpoint_iterator, const std::function<void(std::error_code)>& handler)
-            {
-                auto self(shared_from_this());
-                asio::async_connect(_socket, endpoint_iterator, [self, handler](std::error_code error, _tcp::resolver::iterator it)
+                if (!ec)
                 {
-                    //{//DEBUG
-                    //    std::cout << "echo_client:async_connect:error:" << error.message() << std::endl;
-                    //    std::cout << "                         :it   :" << it->host_name() << ":" << it->service_name() << std::endl;
-                    //}
-                    handler(error);
-                });
-            }
-
-            void close()
-            {
-                ASIO.io_service.post([this]() { _socket.close(); });
-            }
-
-            void write(const buffer_t& msg)
-            {
-                auto self(shared_from_this());
-                ASIO.io_service.post([self, this, msg]()
-                {
-                    bool write_in_progress = !write_queue.empty();
-                    write_queue.push_back(msg);
-                    if (!write_in_progress)
+                    write_queue.pop_front();
+                    if (!write_queue.empty())
                     {
                         do_write();
                     }
-                });
-            }
-
-            void read(const std::function<void(std::error_code, const buffer_t&)>& handler)
-            {
-                auto self(shared_from_this());
-                _socket.async_read_some(asio::buffer(read_buffer, max_length), [self, this, handler](std::error_code error, std::size_t length)
+                }
+                else
                 {
-                    //{//DEBUG
-                    //    std::cout << "echo_client:async_read:error :" << error.message() << std::endl;
-                    //    std::cout << "                      :length:" << length << std::endl;
-                    //}
+                    _socket.close();
+                }
+            });
+        }
 
-                    if (error) {
-                        _socket.close();
-                        return handler(error, {});
-                    }
+    private:
+        _tcp::socket _socket;
+        enum { max_length = 1024 };
+        char read_buffer[max_length];
+        std::deque<buffer_t> write_queue;
+};
 
-                    handler({}, buffer_t{ &read_buffer[0], &read_buffer[length] });
-                });
-            }
 
-        private:
-            void do_write()
-            {
-                auto self(shared_from_this());
-                asio::async_write(_socket, asio::buffer(write_queue.front().data(), write_queue.front().size()), [self, this](std::error_code ec, std::size_t /*length*/)
-                {
-                    if (!ec)
-                    {
-                        write_queue.pop_front();
-                        if (!write_queue.empty())
-                        {
-                            do_write();
-                        }
-                    }
-                    else
-                    {
-                        _socket.close();
-                    }
-                });
-            }
-
-        private:
-            _tcp::socket _socket;
-            enum { max_length = 1024 };
-            char read_buffer[max_length];
-            std::deque<buffer_t> write_queue;
-    };
+class p2p::node::nodeimpl
+{
 
 public:
     nodeimpl()
         : _acceptor(ASIO.io_service), _resolver(ASIO.io_service)
     {
+        local_endpoints();
     }
 
     ~nodeimpl()
     {
         stop();
     }
+
+    std::vector<addr_buffer<>> local_endpoints()
+    {
+        // loopback   : /ip4/127.0.0.1 
+        //            : /ip6/::1
+        // LAN        : /ip4/172.16.0.0/12
+        //            : /ip4/192.168.0.0/16
+        // link-local : /ip4/169.254.0.0/16 (4 addresses with go-ipfs)
+        //
+
+        static auto memo = std::vector<addr_buffer<>>{};
+        if (memo.empty())
+        {
+            // loopback
+            memo.push_back({ ip4, asio::ip::address_v4::loopback().to_string() });
+            memo.push_back({ ip6, asio::ip::address_v6::loopback().to_string() });
+
+            // private addresses
+            auto it = _resolver.resolve({ asio::ip::host_name(), "" });
+            while (it != _tcp::resolver::iterator{})
+            {
+                auto addr = (it++)->endpoint().address();
+                std::cout << (addr.is_v6() ? "ipv6 address: " : "ipv4 address: ") << addr.to_string() << std::endl;
+
+                memo.push_back({ addr.is_v6() ? ip6 : ip4, addr.to_string() });
+            }
+
+            // link-local
+        }
+        return memo;
+    }
+
 
     multiaddr listen(const multiaddr& ma)
     {
